@@ -3,6 +3,7 @@ package parse
 import (
 	"exactArithmetic/scan"
 	"exactArithmetic/value"
+	"log"
 )
 
 type Parser struct {
@@ -24,8 +25,12 @@ func (p *Parser) peek() scan.Token {
 	return p.Tokens[0]
 }
 
-func (p *Parser) number() value.Expr {
-	return nil
+func (p *Parser) number(tok scan.Token) value.Expr {
+	val, err := value.SetIntString(tok.Text)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return value.Int(val)
 }
 
 // TOP rule
@@ -35,13 +40,17 @@ func (p *Parser) Line() ([]value.Expr, bool) {
 
 // The boolean reports whether the expression is valid.
 func (p *Parser) addExpr() value.Expr {
-	expr := p.number()
-	tok := p.next()
-	return &binary{
-		left: expr,
-		op: tok.Text,
-		right: p.addExpr(),
+	expr := p.number(p.next())
+	op := p.next()
+	if op.Text == "+" {
+		expr1 := p.number(p.next())
+		return &binary{
+			op:    "+",
+			left:  expr,
+			right: expr1,
+		}
 	}
+	return expr
 }
 
 type binary struct {
