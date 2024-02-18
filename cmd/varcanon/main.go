@@ -91,35 +91,6 @@ func genSym2(name string, isArray bool) string {
 	return genSym(typ, name)
 }
 
-func replaceVariableNames(src string) (string, error) {
-	fset := token.NewFileSet()
-	node, err := parser.ParseFile(fset, "", src, parser.ParseComments)
-	if err != nil {
-		return "", err
-	}
-
-	// Create a map to keep track of variable declarations
-
-	ast.Inspect(node, func(n ast.Node) bool {
-		switch x := n.(type) {
-		case *ast.FuncDecl:
-			replaceInFuncDecl(x)
-		case *ast.GenDecl:
-			replaceInGenDecl(x)
-		case *ast.AssignStmt:
-			replaceInAssignStmt(x)
-		}
-		return true
-	})
-
-	var buf bytes.Buffer
-	if err := format.Node(&buf, fset, node); err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
-}
-
 func replaceInAssignStmt(x *ast.AssignStmt) {
 	for _, lh := range x.Lhs {
 		if ident, ok := lh.(*ast.Ident); ok {
