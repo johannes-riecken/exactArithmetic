@@ -19,12 +19,11 @@ var (
 	varMappings = make(map[string]string)
 )
 
-func genSym(n ast.Node, name string) string {
+func genSym(name string, isArray bool) string {
 	val, ok := varMappings[name]
 	if ok {
 		return val
 	}
-	_, isArray := n.(*ast.ArrayType)
 	var ret string
 	if isArray {
 		ret = genArrSym()
@@ -41,7 +40,7 @@ func genArrSym() string {
 	return arrSyms[iArrSyms-1]
 }
 
-func replaceVariableNames2(src string) (string, error) {
+func replaceVariableNames(src string) (string, error) {
 	// Step 1: Parse the Go code
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, "", src, parser.AllErrors)
@@ -64,10 +63,8 @@ func replaceVariableNames2(src string) (string, error) {
 		switch x := n.(type) {
 		case *ast.Ident:
 			if tv, ok := info.Types[x]; ok && x.Obj != nil && x.Obj.Kind == ast.Var {
-				// Logic to generate new variable name based on type
-				// For simplicity, just appending type info to the name
 				typeName := tv.Type.String()
-				x.Name = genSym2(x.Name, typeName == "[]int")
+				x.Name = genSym(x.Name, typeName == "[]int")
 			}
 		}
 		return true
@@ -79,47 +76,6 @@ func replaceVariableNames2(src string) (string, error) {
 	}
 
 	return buf.String(), nil
-}
-
-func genSym2(name string, isArray bool) string {
-	var typ ast.Node
-	if isArray {
-		typ = &ast.ArrayType{}
-	} else {
-		typ = &ast.FuncType{} // wrong, but who cares
-	}
-	return genSym(typ, name)
-}
-
-func replaceInAssignStmt(x *ast.AssignStmt) {
-	for _, lh := range x.Lhs {
-		if ident, ok := lh.(*ast.Ident); ok {
-			if cl, ok := x.Rhs[0].(*ast.CompositeLit); ok && len(x.Rhs) == 1 {
-				ident.Name = genSym(cl.Type, ident.Name)
-			}
-		}
-	}
-}
-
-func replaceInGenDecl(x *ast.GenDecl) {
-	if x.Tok == token.VAR {
-		for _, spec := range x.Specs {
-			if valueSpec, ok := spec.(*ast.ValueSpec); ok {
-				for _, name := range valueSpec.Names {
-					name.Name = genSym(valueSpec.Type, name.Name)
-				}
-			}
-		}
-	}
-}
-
-func replaceInFuncDecl(x *ast.FuncDecl) {
-	// Handle function parameters
-	for _, field := range x.Type.Params.List {
-		for _, name := range field.Names {
-			name.Name = genSym(field.Type, name.Name)
-		}
-	}
 }
 
 func main() {
@@ -138,7 +94,7 @@ func exampleFunc(foo int, bar []int, baz int, quux []int) {
 	foobar, foo, quux = len(bar), len(quux), []int{foo, baz}
 }
 `
-	newSrc, err := replaceVariableNames2(src)
+	newSrc, err := replaceVariableNames(src)
 	if err != nil {
 		return err
 	}
