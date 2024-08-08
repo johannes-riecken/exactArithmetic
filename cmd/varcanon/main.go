@@ -15,7 +15,16 @@ func main() {
 }
 
 func mainAux() error {
-	src, err := io.ReadAll(os.Stdin)
+	fh := os.Stdin
+	if len(os.Args) > 1 {
+		var err error
+		fh, err = os.Open(os.Args[1])
+		if err != nil {
+			return err
+		}
+		defer fh.Close()
+	}
+	src, err := io.ReadAll(fh)
 	if err != nil {
 		return err
 	}

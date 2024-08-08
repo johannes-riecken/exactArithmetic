@@ -44,6 +44,14 @@ func genArrSym() string {
 	return arrSyms[iArrSyms-1]
 }
 
+func resetGlobals() {
+	syms = []string{"x", "y", "z", "w", "v", "s", "t", "u"}
+	iSyms = 0
+	arrSyms = []string{"a", "b", "c", "d", "e", "f", "g"}
+	iArrSyms = 0
+	varMappings = make(map[string]string)
+}
+
 func ReplaceVariableNames(src string) (string, error) {
 	// Step 1: Parse the Go code
 	fset := token.NewFileSet()
@@ -67,6 +75,9 @@ func ReplaceVariableNames(src string) (string, error) {
 	// Step 3: Traverse and Rename
 	ast.Inspect(node, func(n ast.Node) bool {
 		switch x := n.(type) {
+		case *ast.FuncDecl:
+			// Reset global variables when a new function is encountered
+			resetGlobals()
 		case *ast.Ident:
 			if tv, ok := info.Types[x]; ok && x.Obj != nil && x.Obj.Kind == ast.Var {
 				typeName := tv.Type.String()
