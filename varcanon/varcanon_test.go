@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"exactArithmetic/varcanon"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestVarCanon(t *testing.T) {
@@ -45,8 +47,8 @@ func TestVarCanon(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if newSrc != string(want) {
-			t.Fatalf("%q != %q", newSrc, want)
+		if diff := cmp.Diff(newSrc, string(want)); diff != "" {
+			t.Fatal(diff)
 		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"strings"
 )
 
 var (
@@ -73,23 +74,44 @@ func ReplaceVariableNames(src string) (string, error) {
 	}
 
 	// Step 3: Traverse and Rename
+	var parentStack []ast.Node
 	ast.Inspect(node, func(n ast.Node) bool {
+		if n == nil {
+			if len(parentStack) > 0 {
+				parentStack = parentStack[:len(parentStack)-1]
+			}
+			return true
+		}
+		parentStack = append(parentStack, n)
+
 		switch x := n.(type) {
 		case *ast.FuncDecl:
 			// Reset global variables when a new function is encountered
 			resetGlobals()
+		case *ast.KeyValueExpr:
+			// Ensure key and value idents do not share the same pointer
+			if identKey, ok := x.Key.(*ast.Ident); ok {
+				x.Key = &ast.Ident{
+					Name:    identKey.Name,
+					NamePos: identKey.NamePos,
+				}
+			}
 		case *ast.Ident:
+			// Skip field names within structs or interfaces
+			if isField(parentStack) {
+				return true
+			}
+
 			if tv, ok := info.Types[x]; ok && x.Obj != nil && x.Obj.Kind == ast.Var {
-				typeName := tv.Type.String()
-				x.Name = genSym(x.Name, typeName == "[]int")
+				x.Name = genSym(x.Name, isCompoundType(tv))
 			}
 			if tv, ok := info.Defs[x]; ok && x.Obj != nil && x.Obj.Kind == ast.Var {
 				typeName := tv.Type().String()
-				x.Name = genSym(x.Name, typeName == "[]int")
+				x.Name = genSym(x.Name, strings.HasPrefix(typeName, "[]"))
 			}
 			if tv, ok := info.Uses[x]; ok && x.Obj != nil && x.Obj.Kind == ast.Var {
 				typeName := tv.Type().String()
-				x.Name = genSym(x.Name, typeName == "[]int")
+				x.Name = genSym(x.Name, strings.HasPrefix(typeName, "[]"))
 			}
 		}
 		return true
@@ -101,4 +123,27 @@ func ReplaceVariableNames(src string) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+// Helper function to determine if a node is a struct or interface field
+func isField(parentStack []ast.Node) bool {
+	for i := len(parentStack) - 1; i >= 0; i-- {
+		switch parentStack[i].(type) {
+		case *ast.Field:
+			// Check if the parent of this field is a struct type or interface type
+			if len(parentStack) > i-1 {
+				switch parentStack[i-2].(type) {
+				case *ast.StructType, *ast.InterfaceType:
+					return true
+				}
+
+			}
+		}
+	}
+	return false
+}
+
+func isCompoundType(tv types.TypeAndValue) bool {
+	typeName := tv.Type.String()
+	return !tv.IsBuiltin() && (strings.HasPrefix(typeName, "[]") || strings.HasPrefix(typeName, "map["))
 }
